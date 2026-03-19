@@ -17,17 +17,99 @@ Replace this paragraph with your own summary of what your version does.
 
 ## How The System Works
 
-Explain your design in plain language.
+Large streaming services blend many signals—collaborative patterns from millions of listeners, rich audio and text features, and session context—to rank what to show next. This project does not simulate that full stack. It prioritizes a **transparent, content-based** slice: each song is described with explicit tags and numeric attributes, a user profile states simple preferences, and a **scoring rule** turns those into a number per song; a **ranking rule** then sorts the catalog and returns the top matches. The goal is to make the data-to-recommendation path easy to inspect and tune, not to match production scale or complexity.
 
-Some prompts to answer:
+### Plan (documented in this section)
 
-- What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
+Project planning is captured **here in `README.md`**, under **How The System Works**, rather than in a separate planning document. That keeps design, data definitions, and behavior in one place.
 
-You can include a simple diagram or bullet list if helpful.
+At a high level, the plan is:
+
+1. **Catalog** — Treat `data/songs.csv` as the full set of songs; each row is one `Song`-shaped record after load.
+2. **Profile** — Use a small **user preference** dictionary (aligned with `UserProfile`) as the fixed target for scoring runs.
+3. **Score** — Apply the **Algorithm recipe (final)** below to **every** song: same rules, same weights, no special cases per row.
+4. **Rank** — Sort by total score, take **top `k`**, attach short explanations for transparency.
+5. **Evaluate** — Run tests and informal checks; document weight tweaks under **Experiments** once implementation exists.
+
+The **Algorithm recipe** subsection below is **finalized** for this simulation: it is the specification to implement in `src/recommender.py` unless you deliberately revise it and record the change here.
+
+**`Song` (simulation features)** — loaded from the catalog for each track:
+
+- `id`, `title`, `artist`
+- `genre`, `mood`
+- `energy`, `tempo_bpm`, `valence`, `danceability`, `acousticness`
+
+**`UserProfile` (simulation features)** — what the recommender assumes about taste:
+
+- `favorite_genre`, `favorite_mood`
+- `target_energy`
+- `likes_acoustic`
+
+**Scoring and ranking** — The `Recommender` (and the `recommend_songs` helper in `src/recommender.py`) computes a **score for each song** by combining how well its **genre** and **mood** match the user’s favorites, how close its **energy** (and optionally other numeric fields) is to **`target_energy`** using a distance-based subscore—not “higher energy is always better”—and how its **acousticness** aligns with **`likes_acoustic`**. To **recommend**, the system **sorts all songs by that score** (highest first) and returns the **top `k`** (default 5). The functional API also attaches a short **explanation** string per result so you can see why a song ranked where it did.
+
+### Algorithm recipe (final)
+
+These are the **specific rules** the program uses to compute one **score per song**, then rank the catalog.
+
+| Rule | Points | Notes |
+|------|--------|--------|
+| **Genre match** | **+2.0** if `song.genre == user.favorite_genre` | Strong signal: genre is the broad “style bucket” and is relatively **sparse** in `songs.csv` (each label appears on few tracks). |
+| **Mood match** | **+1.0** if `song.mood == user.favorite_mood` | Weaker than genre: **mood repeats across genres** (e.g. `chill` appears on lofi *and* ambient), so it should not outweigh genre alone. |
+| **Energy similarity** | **+3.0 × (1 − \|song.energy − target_energy\|)** | Rewards **closeness** to the user’s target, not “higher is better.” Max **+3.0** when energies match; **0** when they are as far apart as possible on the 0–1 scale. |
+| **Acoustic preference** (optional) | **+1.0** if aligned: `likes_acoustic` and `song.acousticness ≥ 0.5`, **or** not `likes_acoustic` and `song.acousticness < 0.5`; else **0** | Ties break toward studio vs organic feel without dominating genre. |
+
+**Total score** = sum of applicable rows above (no negative terms in this starter recipe).
+
+**Ranking rule:** compute that total for **every** song in the catalog, **sort descending** by score, **tie-break** by `song.id` ascending for stability, return the **first `k`**.
+
+**Genre vs mood weighting:** With **+2.0** vs **+1.0**, a song that matches **genre only** still scores higher than a song that matches **mood only** alone (2 points vs 1). That matches the intent: *style* is the anchor, *mood* refines. If both match, the genre+mood stack (+3) clearly beats a wrong-genre track that only happens to share mood or energy. On a **tiny** catalog, you can tune these (e.g. `1.5` / `1.5`) if you want more discovery across genres—see experiments below.
+
+### Expected biases (from this design)
+
+These are predictable skews from the **finalized recipe**, not bugs:
+
+- **Genre-first bias** — A higher weight on genre match can **bury strong tracks in other genres** that still fit the user’s mood, energy, or acoustic taste. Example: a perfect **mood + energy** match may lose to a mediocre same-genre track that only checks the genre box.
+- **Exact-tag bias** — Mood and genre are **exact string matches**. Songs that feel “chill” but use a different label (e.g. `relaxed`) get **no mood bonus**, so the system can underrate subjectively similar music.
+- **Energy dominance** — Energy similarity can contribute up to **+3.0** points, comparable in scale to genre + mood combined. That can **reorder** lists in ways that feel like “energy over story,” especially if `target_energy` is extreme.
+- **Small catalog** — With few rows per genre, recommendations may **repeat a narrow band** of artists or **over-represent** whichever genre has the most near-matches to the profile.
+
+Document any changes to weights here so biases shift in known ways when you experiment.
+
+### Data flow (mental map)
+
+1. **Input** — User preferences (target genre, mood, energy, acoustic taste) **plus** the catalog file `data/songs.csv`.
+2. **Process** — Load the CSV into a list; **for each song**, run the same scoring recipe against the same user prefs (no song skipped).
+3. **Output** — **Ranking:** sort all `(song, score, …)` pairs by score, then take the **top `K`** as the final recommendation list.
+
+*Single-song path:* one **row** in the CSV becomes one **song record** in memory → that record and the user prefs go into the **scoring rules** → you get one **numeric score** (and explanation) → that pair joins the full list → after every row is processed, **sorting** assigns its **rank** among all songs.
+
+```mermaid
+flowchart TD
+    subgraph Input
+        CSV[(data/songs.csv)]
+        Prefs[User preferences]
+    end
+
+    CSV --> Load[Load: parse each row]
+    Load --> Catalog[Catalog — list of song records\none record per CSV row]
+
+    subgraph Process["The loop: judge every song"]
+        Catalog --> One[One song + same user prefs]
+        Prefs --> One
+        One --> Score[Scoring recipe → score + explanation]
+    end
+
+    Score --> Pool[All scored pairs for full catalog]
+    Pool --> Rank[Ranking: sort by score descending\ntie-break by song id]
+    Rank --> TopK[Take first K]
+    TopK --> Out[Output: Top K recommendations]
+
+    subgraph Output
+        Out
+    end
+```
+
+The **Process** box is repeated conceptually for each catalog item: every row takes the same path from **song record** → **score** before the list is sorted.
 
 ---
 
@@ -53,6 +135,12 @@ pip install -r requirements.txt
 ```bash
 python -m src.main
 ```
+
+### CLI sample output
+
+Example terminal output from `python -m src.main` (ranked scores and scoring reasons):
+
+![Top recommendations CLI](<top recommendations.png>)
 
 ### Running Tests
 

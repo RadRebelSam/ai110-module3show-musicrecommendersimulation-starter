@@ -9,25 +9,50 @@ You will implement the functions in recommender.py:
 - recommend_songs
 """
 
-from recommender import load_songs, recommend_songs
+from .recommender import load_songs, recommend_songs
+
+WIDTH = 72
+
+
+def _reason_lines(explanation: str) -> list[str]:
+    """Split semicolon-joined reasons into one line each for display."""
+    return [part.strip() for part in explanation.split(";") if part.strip()]
 
 
 def main() -> None:
-    songs = load_songs("data/songs.csv") 
+    songs = load_songs("data/songs.csv")
+    print(f"Loaded songs: {len(songs)}")
 
-    # Starter example profile
-    user_prefs = {"genre": "pop", "mood": "happy", "energy": 0.8}
+    # Taste profile for content-based scoring (matches UserProfile fields in recommender.py)
+    user_prefs = {
+        "favorite_genre": "lofi",
+        "favorite_mood": "chill",
+        "target_energy": 0.38,
+        "likes_acoustic": True,
+    }
 
     recommendations = recommend_songs(user_prefs, songs, k=5)
 
-    print("\nTop recommendations:\n")
-    for rec in recommendations:
-        # You decide the structure of each returned item.
-        # A common pattern is: (song, score, explanation)
+    line = "=" * WIDTH
+    print()
+    print(line)
+    print(f"{'TOP RECOMMENDATIONS':^{WIDTH}}")
+    print(line)
+
+    for rank, rec in enumerate(recommendations, start=1):
         song, score, explanation = rec
-        print(f"{song['title']} - Score: {score:.2f}")
-        print(f"Because: {explanation}")
+        title = song["title"]
         print()
+        print(f"  {rank}. {title}")
+        print(f"      Score: {score:.2f}")
+        print("      Reasons:")
+        for reason in _reason_lines(explanation):
+            print(f"        - {reason}")
+        if rank < len(recommendations):
+            print()
+
+    print(line)
+    print()
 
 
 if __name__ == "__main__":
