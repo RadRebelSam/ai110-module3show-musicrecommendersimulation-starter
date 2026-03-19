@@ -38,14 +38,43 @@ The **Algorithm recipe** subsection below is **finalized** for this simulation: 
 - `id`, `title`, `artist`
 - `genre`, `mood`
 - `energy`, `tempo_bpm`, `valence`, `danceability`, `acousticness`
+- **Advanced (optional in prefs):** `popularity` (0–100), `release_decade` (e.g. `2020s`), `mood_tags` (comma-separated, e.g. `nostalgic, warm`)
 
 **`UserProfile` (simulation features)** — what the recommender assumes about taste:
 
 - `favorite_genre`, `favorite_mood`
 - `target_energy`
 - `likes_acoustic`
+- **Optional:** `target_popularity` (0–100), `preferred_decade`, `favorite_mood_tags` (comma-separated). If omitted, those terms do not affect the score.
 
-**Scoring and ranking** — The `Recommender` (and the `recommend_songs` helper in `src/recommender.py`) computes a **score for each song** by combining how well its **genre** and **mood** match the user’s favorites, how close its **energy** (and optionally other numeric fields) is to **`target_energy`** using a distance-based subscore—not “higher energy is always better”—and how its **acousticness** aligns with **`likes_acoustic`**. To **recommend**, the system **sorts all songs by that score** (highest first) and returns the **top `k`** (default 5). The functional API also attaches a short **explanation** string per result so you can see why a song ranked where it did.
+**Scoring and ranking** — The `Recommender` (and the `recommend_songs` helper in `src/recommender.py`) computes a **score for each song** by combining how well its **genre** and **mood** match the user’s favorites, how close its **energy** is to **`target_energy`** (distance-based), and **acousticness** vs **`likes_acoustic`**. **If set in the user dict:** **popularity** similarity (0–100 scale, up to +2.0), **decade** match (+1.5), and **overlap** between the user’s mood tags and the song’s `mood_tags` (up to +2.25 from shared tags). To **recommend**, the system **sorts all songs by that score** (highest first) and returns the **top `k`** (default 5). The functional API also attaches a short **explanation** string per result so you can see why a song ranked where it did.
+
+### Scoring modes (Strategy pattern)
+
+Ranking can use different **weight bundles** without duplicating feature logic:
+
+| Mode | Intent |
+|------|--------|
+| `balanced` | Default mix (same relative scale as the weight experiment). |
+| `genre_first` | Boost genre (and decade) vs mood/energy. |
+| `mood_first` | Boost mood and mood-tag overlap vs genre. |
+| `energy_focused` | Maximize the energy-similarity term; down-weight genre/mood. |
+
+In code, each mode is a **`ScoringStrategy`** with a frozen **`ScoreWeights`**; `score_song(..., strategy=...)` and `recommend_songs(..., strategy=...)` delegate to that strategy. **Switch in `src/main.py`:** set `SCORING_MODE` or run `python -m src.main mood_first` (CLI arg overrides the constant).
+
+### Diversity and fairness (artist / genre spread)
+
+After every song gets a **raw** content score, the default top-`k` step uses a **greedy** rule: repeatedly add the candidate with the best **diversity-adjusted** value among songs not yet picked. The adjusted score is:
+
+`raw − 1.5 × (songs already chosen with same artist) − 1.0 × (songs already chosen with same genre)`
+
+So a second track by the same artist (or same genre) “pays a tax” if another strong candidate exists. Set **`diversity=False`** on `recommend_songs` or `Recommender.recommend` to use a plain sort-by-raw-score slice (useful for debugging).
+
+#### Prompt for Inline Chat (copy-paste)
+
+Use this when asking an assistant to implement or review diversity logic:
+
+> Implement greedy top-k recommendations: each song has a raw score. Build the list one song at a time. When comparing remaining candidates, use an **adjusted score** = raw score minus **1.5** for every song **already placed** in the shortlist with the **same artist**, and minus **1.0** for every song already placed with the **same genre**. Always pick the remaining candidate with the **highest adjusted score**; break ties by higher raw score then lower `id`. Stop at k songs. This should prevent the top list from filling with duplicates from one artist or one genre when alternatives exist.
 
 ### Algorithm recipe (final)
 
@@ -136,9 +165,11 @@ pip install -r requirements.txt
 python -m src.main
 ```
 
+Recommendations print as a **grid table** (via **`tabulate`**): columns are rank, title, artist, score, and **reasons** (one line per scoring factor, wrapped to fit the terminal).
+
 ### CLI sample output
 
-Example terminal output from `python -m src.main` (ranked scores and scoring reasons):
+Example terminal output from `python -m src.main` (older screenshot; current builds use the table layout above):
 
 ![Top recommendations CLI](<top recommendations.png>)
 
@@ -154,6 +185,42 @@ You can add more tests in `tests/test_recommender.py`.
 
 ---
 
+## System Evaluation
+
+### Standard profiles (`src/main.py`)
+
+`main()` runs three labeled profiles to stress-test ranking across different tastes:
+
+| Profile | Intent |
+|---------|--------|
+| **High-Energy Pop** | `pop` + `happy` + high `target_energy` + non-acoustic lean |
+| **Chill Lofi** | `lofi` + `chill` + low energy + acoustic-friendly |
+| **Deep Intense Rock** | `rock` + `intense` + very high energy + non-acoustic |
+
+Example terminal output (standard profiles section from `python -m src.main`):
+
+![Standard profile CLI](<standard profile.png>)
+
+### Adversarial / edge-case profiles (suggested)
+
+The recommender uses **exact** genre/mood strings and **additive** points, so some profiles expose blind spots:
+
+1. **Conflicting affect vs energy** — e.g. `target_energy: 0.95` with `favorite_mood: "melancholic"`. Nothing in the catalog may satisfy both mood and energy; the model still adds energy points for every song, so **high-energy mismatches** can outrank a better mood fit. *Question:* Is “energy similarity” doing too much of the work?
+
+2. **Genre string traps** — e.g. `favorite_genre: "pop"` when the catalog lists **`indie pop`** (not equal to `pop`). The user gets **no genre bonus** for Rooftop Lights even though it is “pop-adjacent.” *Question:* Should we normalize or fuzzy-match genre labels?
+
+3. **Cross-purpose tension** — e.g. `favorite_genre: "metal"` + `likes_acoustic: True`. Metal rows tend to be **low acousticness**; the acoustic rule may **rarely** fire or feel at odds with the genre. *Question:* Are categorical prefs ever logically inconsistent for this dataset?
+
+4. **Mood label not in catalog** — e.g. `favorite_mood: "sad"` (if absent from `songs.csv`). **No mood points** for anyone; rankings hinge on genre + energy + acoustic only. *Question:* Does the system fail “open” in a way users would find confusing?
+
+`python -m src.main` runs **both** `STANDARD_PROFILES` and `ADVERSARIAL_PROFILES` in order (standard block first, then adversarial). To try a single profile, call `recommend_songs` or `_print_recommendations` from a short script with one dict.
+
+Example terminal output (adversarial / edge-case section, e.g. conflicting high energy + melancholic mood):
+
+![Adversarial profile CLI](<adversarial profile.png>)
+
+---
+
 ## Experiments You Tried
 
 Use this section to document the experiments you ran. For example:
@@ -161,6 +228,8 @@ Use this section to document the experiments you ran. For example:
 - What happened when you changed the weight on genre from 2.0 to 0.5
 - What happened when you added tempo or valence to the score
 - How did your system behave for different types of users
+
+**Weight-shift experiment (active in `src/recommender.py`):** genre match is **halved** (`_GENRE_MATCH_POINTS = 1.0` vs README 2.0) and the energy similarity scale is **doubled** (`_ENERGY_SIMILARITY_MAX = 6.0` vs README 3.0). Energy points remain `W * (1 - |Δ|)`, so each term is still in a valid range (energy contribution ∈ [0, 6]); total score is still a **sum of nonnegative components**. Mood (+1) and acoustic (+1) are unchanged. Revert the two module constants to `2.0` and `3.0` to match the finalized README recipe again.
 
 ---
 
@@ -180,15 +249,9 @@ You will go deeper on this in your model card.
 
 ## Reflection
 
-Read and complete `model_card.md`:
+The full write-up is in [**model_card.md**](model_card.md) §9 **Personal Reflection**.
 
-[**Model Card**](model_card.md)
-
-Write 1 to 2 paragraphs here about what you learned:
-
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
+**Short take:** The biggest learning moment was seeing **rules on paper** diverge from **what feels fair** (e.g. exact mood strings vs “happy” as a vibe). AI tools helped with structure and drafting, but **running `main`, reading scores, and testing edge profiles** stayed non-negotiable. Even this tiny recommender **felt** like a real ranking engine—ordered lists plus reasons are persuasive—which is why bias and weight choices matter. Next I’d explore diversity rules and softer genre matching.
 
 ---
 

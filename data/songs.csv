@@ -1,19 +1,19 @@
-id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
-1,Sunrise City,Neon Echo,pop,happy,0.82,118,0.84,0.79,0.18
-2,Midnight Coding,LoRoom,lofi,chill,0.42,78,0.56,0.62,0.71
-3,Storm Runner,Voltline,rock,intense,0.91,152,0.48,0.66,0.10
-4,Library Rain,Paper Lanterns,lofi,chill,0.35,72,0.60,0.58,0.86
-5,Gym Hero,Max Pulse,pop,intense,0.93,132,0.77,0.88,0.05
-6,Spacewalk Thoughts,Orbit Bloom,ambient,chill,0.28,60,0.65,0.41,0.92
-7,Coffee Shop Stories,Slow Stereo,jazz,relaxed,0.37,90,0.71,0.54,0.89
-8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22
-9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78
-10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35
-11,Winter Nocturne,Clara Voss,classical,melancholic,0.22,68,0.25,0.28,0.94
-12,Block Party Anthem,Kai North,hip-hop,euphoric,0.88,95,0.92,0.81,0.12
-13,Dust Road Letters,Eli Hart,country,nostalgic,0.55,112,0.48,0.52,0.63
-14,Iron Cathedral,Obsidian Tide,metal,aggressive,0.96,178,0.32,0.38,0.04
-15,Sunlit Harbor,Sofia Wave,reggae,playful,0.62,88,0.88,0.74,0.41
-16,Velvet Hour,Marlowe Blue,soul,romantic,0.41,74,0.67,0.55,0.58
-17,Pine & Echo,The Hollow Pines,folk,dreamy,0.33,96,0.72,0.48,0.82
-18,Subfloor Pulse,Vanta Circuit,electronic,dark,0.79,128,0.22,0.69,0.08
+id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness,popularity,release_decade,mood_tags
+1,Sunrise City,Neon Echo,pop,happy,0.82,118,0.84,0.79,0.18,88,2020s,"upbeat, bright"
+2,Midnight Coding,LoRoom,lofi,chill,0.42,78,0.56,0.62,0.71,62,2020s,"chill, focused"
+3,Storm Runner,Voltline,rock,intense,0.91,152,0.48,0.66,0.10,71,2010s,"aggressive, driving"
+4,Library Rain,Paper Lanterns,lofi,chill,0.35,72,0.60,0.58,0.86,54,2020s,"chill, cozy"
+5,Gym Hero,Max Pulse,pop,intense,0.93,132,0.77,0.88,0.05,92,2020s,"intense, anthemic"
+6,Spacewalk Thoughts,Orbit Bloom,ambient,chill,0.28,60,0.65,0.41,0.92,41,2010s,"ethereal, chill"
+7,Coffee Shop Stories,Slow Stereo,jazz,relaxed,0.37,90,0.71,0.54,0.89,38,2000s,"nostalgic, warm"
+8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22,67,2020s,"moody, nostalgic"
+9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78,59,2020s,"focused, calm"
+10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35,76,2020s,"euphoric, upbeat"
+11,Winter Nocturne,Clara Voss,classical,melancholic,0.22,68,0.25,0.28,0.94,33,1990s,"melancholic, sparse"
+12,Block Party Anthem,Kai North,hip-hop,euphoric,0.88,95,0.92,0.81,0.12,85,2020s,"euphoric, party"
+13,Dust Road Letters,Eli Hart,country,nostalgic,0.55,112,0.48,0.52,0.63,48,2010s,"nostalgic, storytelling"
+14,Iron Cathedral,Obsidian Tide,metal,aggressive,0.96,178,0.32,0.38,0.04,56,2010s,"aggressive, dark"
+15,Sunlit Harbor,Sofia Wave,reggae,playful,0.62,88,0.88,0.74,0.41,52,2000s,"playful, sunny"
+16,Velvet Hour,Marlowe Blue,soul,romantic,0.41,74,0.67,0.55,0.58,44,1990s,"romantic, nostalgic"
+17,Pine & Echo,The Hollow Pines,folk,dreamy,0.33,96,0.72,0.48,0.82,36,2010s,"dreamy, acoustic-leaning"
+18,Subfloor Pulse,Vanta Circuit,electronic,dark,0.79,128,0.22,0.69,0.08,63,2020s,"dark, tense"
